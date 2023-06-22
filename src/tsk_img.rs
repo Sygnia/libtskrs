@@ -1,4 +1,5 @@
-use std::ptr::{NonNull};
+use std::path::Path;
+use std::ptr::NonNull;
 use std::ffi::{CStr, CString};
 use crate::{
     errors::TskError,
@@ -15,11 +16,19 @@ pub struct TskImg {
     pub handle: NonNull<tsk::TSK_IMG_INFO>
 }
 impl TskImg {
+    /// Create a TskImg wrapper from a given TSK_IMG_INFO NonNull pinter.
+    /// 
+    pub fn from_tsk_img_info_ptr(img_info: NonNull<tsk::TSK_IMG_INFO>) -> Self {
+        Self {
+            handle: img_info
+        }
+    }
+
     /// Create a TskImg wrapper from a given source.
     /// 
-    pub fn from_source(source: &str) -> Result<Self, TskError> {
+    pub fn from_utf8_sing(path: impl AsRef<Path>) -> Result<Self, TskError> {
         // Create a CString for the provided source
-        let source = CString::new(source)
+        let source = CString::new(path.as_ref().to_string_lossy().as_bytes())
             .map_err(|e| TskError::generic(format!("Unable to create CString from source: {:?}", e)))?;
 
         // Get a pointer to the TSK_IMG_INFO sturct
@@ -33,9 +42,19 @@ impl TskImg {
         let handle = match NonNull::new(tsk_img) {
             None => {
                 // Get a ptr to the error msg
-                let error_msg_ptr = unsafe { tsk::tsk_error_get() };
+                let error_msg_ptr = unsafe { NonNull::new(tsk::tsk_error_get() as _) }
+                    .ok_or(
+                        TskError::lib_tsk_error(
+                            format!(
+                                "There was an error opening the img handle from {}. (no context)",
+                                path.as_ref()
+                                    .to_string_lossy()
+                            )
+                        )
+                    )?;
+
                 // Get the error message from the string
-                let error_msg = unsafe { CStr::from_ptr(error_msg_ptr) }.to_string_lossy();
+                let error_msg = unsafe { CStr::from_ptr(error_msg_ptr.as_ptr()) }.to_string_lossy();
                 // Return an error which includes the TSK error message
                 return Err(TskError::lib_tsk_error(
                     format!("There was an error opening the img handle: {}", error_msg)
