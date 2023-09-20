@@ -5,6 +5,7 @@ authors = ["matthew seyer <https://github.com/forensicmatt/libtsk-rs>"]
 edition = "2018"
 
 [dependencies]
+log = "=0.4"
 clap = "=2"
 
 [build-dependencies]
